@@ -1,0 +1,10 @@
+Comandi da eseguire per una installazione da zero del sito
+
+Copiare il file .env.example in .env e modificare il percorso del database 
+(esempio DATABASE_URL=file:../db/custom.db se si vuole usare il db vuoto gia' presente nella cartella db)
+
+Lanciare i seguenti comandi:
+npm install
+npx prisma generate
+npm run db:push  
+npm run dev

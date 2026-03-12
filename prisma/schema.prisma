@@ -1,0 +1,187 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Servizi - Macro aree
+model Servizio {
+  id           String        @id @default(cuid())
+  nome         String
+  descrizione  String?
+  ordine       Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  applicazioni Applicazione[]
+  
+
+}
+
+// Applicazioni - Dentro ogni Servizio
+model Applicazione {
+  id                   String              @id @default(cuid())
+  nome                 String
+  descrizione          String?
+  ordine               Int                 @default(0)
+  statoMigrazioneCodice StatoMigrazioneCodice @default(DA_RIPROGETTARE)
+  servizioId           String
+  servizio             Servizio            @relation(fields: [servizioId], references: [id], onDelete: Cascade)
+  ambienti             Ambiente[]
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+}
+
+// Ambienti - Dentro ogni Applicazione
+model Ambiente {
+  id                   String            @id @default(cuid())
+  tipologia            TipologiaAmbiente
+  tipoNodo             TipoNodo          @default(SINGOLO)
+  statoAvanzamento     StatoAvanzamento  @default(NON_INIZIATO)
+  // Date
+  dataInizio           DateTime?         // Data inizio migrazione
+  dataFine             DateTime?         // Data fine migrazione
+  // Nodo 1
+  nomeMacchina1        String?       // Nome macchina/IP da migrare - Nodo 1
+  macchineWS1          String?       // Macchine WS - Nodo 1
+  macchineJBoss1       String?       // Macchine JBoss - Nodo 1
+  // Nodo 2 (solo se tipoNodo = DOPPIO)
+  nomeMacchina2        String?       // Nome macchina/IP da migrare - Nodo 2
+  macchineWS2          String?       // Macchine WS - Nodo 2
+  macchineJBoss2       String?       // Macchine JBoss - Nodo 2
+  // Altri campi
+  dns                  String?
+  netscaler            String?
+  richiestaCHG         String?       // Richiesta CHG
+  riscontri            String?       // Riscontri
+  note                 String?
+  configurazioni       String?
+  // Notifiche
+  lastNotificationSentAt DateTime?   // Ultima notifica scadenza inviata
+  applicazioneId       String
+  applicazione         Applicazione  @relation(fields: [applicazioneId], references: [id], onDelete: Cascade)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+}
+
+// Enum per tipologia ambiente
+enum TipologiaAmbiente {
+  TEST_INTERNO
+  VALIDAZIONE
+  TEST_CONCESSIONARI
+  BENCHMARK
+  PRODUZIONE
+}
+
+// Enum per tipo nodo
+enum TipoNodo {
+  SINGOLO
+  DOPPIO
+}
+
+// Enum per stato avanzamento migrazione
+enum StatoAvanzamento {
+  NON_INIZIATO
+  RICHIESTA_AMBIENTI
+  CONFIGURAZIONE_AMBIENTI
+  IN_TEST
+  COMPLETATO
+}
+
+// Enum per stato migrazione codice
+enum StatoMigrazioneCodice {
+  DA_RIPROGETTARE
+  DA_INIZIARE
+  IN_PORTING
+  DA_TESTARE
+  IN_TEST
+  OK
+}
+
+// Configurazione Email
+model EmailConfig {
+  id                    String    @id @default(cuid())
+  smtpHost              String
+  smtpPort              Int       @default(587)
+  smtpUser              String
+  smtpPassword          String
+  smtpSecure            Boolean   @default(false)
+  senderEmail           String
+  senderName            String    @default("MIDA - Migration Dashboard")
+  recipients            String
+  // Proxy settings
+  proxyEnabled          Boolean   @default(false)
+  proxyHost             String?
+  proxyPort             Int?
+  proxyUser             String?
+  proxyPassword         String?
+  // Notification settings
+  notifyScadenze        Boolean   @default(true)
+  notifyScadenzeDays    Int       @default(7)
+  notifyModifiche       Boolean   @default(true)
+  notifyCreate          Boolean   @default(true)
+  notifyUpdate          Boolean   @default(true)
+  notifyDelete          Boolean   @default(true)
+  enabled               Boolean   @default(false)
+  lastSentAt            DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+// Log Email
+model EmailLog {
+  id          String    @id @default(cuid())
+  type        String
+  subject     String
+  recipients  String
+  status      String
+  error       String?
+  sentAt      DateTime  @default(now())
+  @@index([type])
+  @@index([sentAt])
+}
+
+// Audit Log - Storico modifiche
+model AuditLog {
+  id          String        @id @default(cuid())
+  entityType  String
+  entityId    String
+  action      String
+  entityName  String
+  fieldName   String?
+  oldValue    String?
+  newValue    String?
+  userAgent   String?
+  userId      String?       // ID dell'utente che ha effettuato l'azione
+  user        User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt   DateTime      @default(now())
+  @@index([entityType])
+  @@index([entityId])
+  @@index([createdAt])
+  @@index([userId])
+}
+
+// Utenti
+model User {
+  id            String      @id @default(cuid())
+  username      String      @unique
+  password      String      // Hashed password
+  name          String?
+  email         String?     @unique
+  role          UserRole    @default(EDITOR)
+  active        Boolean     @default(true)
+  lastLoginAt   DateTime?
+  auditLogs     AuditLog[]  // Log delle azioni dell'utente
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+enum UserRole {
+  ADMIN     // Può fare tutto: creare, modificare, eliminare, gestire utenti
+  EDITOR    // Può creare e modificare, ma non gestire utenti
+}

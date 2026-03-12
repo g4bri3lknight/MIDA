@@ -1,0 +1,13 @@
+{
+  "name": "notification-scheduler",
+  "version": "1.0.0",
+  "description": "Scheduled notification service for MIDA",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot run index.ts",
+    "start": "bun run index.ts"
+  },
+  "dependencies": {
+    "node-cron": "^3.0.3"
+  }
+}

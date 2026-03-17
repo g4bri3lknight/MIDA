@@ -571,7 +571,7 @@ function cleanupUploadFolder(): void {
 }
 
 export async function POST(request: NextRequest) {
-  const authCheck = await requireImport(request);
+  const authCheck = await requireImport();
   if (!authCheck.authorized) {
     return authCheck.response;
   }

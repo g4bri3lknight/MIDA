@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/components/migration/auth-provider';
 import {
   Dialog,
   DialogContent,
@@ -24,7 +23,6 @@ interface ServizioDialogProps {
 }
 
 export function ServizioDialog({ open, onOpenChange, servizio, onSuccess }: ServizioDialogProps) {
-  const { authFetch } = useAuth();
   const [nome, setNome] = useState('');
   const [descrizione, setDescrizione] = useState('');
   const [loading, setLoading] = useState(false);
@@ -57,8 +55,9 @@ export function ServizioDialog({ open, onOpenChange, servizio, onSuccess }: Serv
       const url = isEditing ? `/api/servizi/${servizio!.id}` : '/api/servizi';
       const method = isEditing ? 'PUT' : 'POST';
 
-      const response = await authFetch(url, {
+      const response = await fetch(url, {
         method,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nome: nome.trim(),
           descrizione: descrizione.trim() || null,

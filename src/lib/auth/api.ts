@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getCurrentUser, canEdit, canDelete, canImport, canManageUsers, type UserRole } from '@/lib/auth';
 
 /**
@@ -24,8 +24,8 @@ export function forbiddenResponse(message = 'Permessi insufficienti') {
 /**
  * Verifica che l'utente sia autenticato
  */
-export async function requireAuth(request: NextRequest) {
-  const user = await getCurrentUser(request);
+export async function requireAuth() {
+  const user = await getCurrentUser();
   if (!user) {
     return { authorized: false, response: unauthorizedResponse() };
   }
@@ -35,8 +35,8 @@ export async function requireAuth(request: NextRequest) {
 /**
  * Verifica che l'utente abbia permessi di modifica
  */
-export async function requireEdit(request: NextRequest) {
-  const user = await getCurrentUser(request);
+export async function requireEdit() {
+  const user = await getCurrentUser();
   if (!user) {
     return { authorized: false, response: unauthorizedResponse() };
   }
@@ -49,8 +49,8 @@ export async function requireEdit(request: NextRequest) {
 /**
  * Verifica che l'utente abbia permessi di eliminazione
  */
-export async function requireDelete(request: NextRequest) {
-  const user = await getCurrentUser(request);
+export async function requireDelete() {
+  const user = await getCurrentUser();
   if (!user) {
     return { authorized: false, response: unauthorizedResponse() };
   }
@@ -63,8 +63,8 @@ export async function requireDelete(request: NextRequest) {
 /**
  * Verifica che l'utente abbia permessi di importazione
  */
-export async function requireImport(request: NextRequest) {
-  const user = await getCurrentUser(request);
+export async function requireImport() {
+  const user = await getCurrentUser();
   if (!user) {
     return { authorized: false, response: unauthorizedResponse() };
   }
@@ -77,8 +77,8 @@ export async function requireImport(request: NextRequest) {
 /**
  * Verifica che l'utente possa gestire utenti
  */
-export async function requireManageUsers(request: NextRequest) {
-  const user = await getCurrentUser(request);
+export async function requireManageUsers() {
+  const user = await getCurrentUser();
   if (!user) {
     return { authorized: false, response: unauthorizedResponse() };
   }

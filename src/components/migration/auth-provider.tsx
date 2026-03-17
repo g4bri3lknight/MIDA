@@ -30,34 +30,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const TOKEN_COOKIE_NAME = 'mida_auth_token';
-const TOKEN_EXPIRY_DAYS = 7;
-
-// Helper functions for cookie management
-function setCookie(name: string, value: string, days: number) {
-  if (typeof document === 'undefined') return;
-  const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toUTCString();
-  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Strict`;
-}
-
-function getCookie(name: string): string | null {
-  if (typeof document === 'undefined') return null;
-  const cookies = document.cookie.split(';');
-  for (const cookie of cookies) {
-    const [cookieName, cookieValue] = cookie.trim().split('=');
-    if (cookieName === name) {
-      return decodeURIComponent(cookieValue);
-    }
-  }
-  return null;
-}
-
-function deleteCookie(name: string) {
-  if (typeof document === 'undefined') return;
-  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-}
-
-// In-memory token as backup
+// In-memory token storage (survives within session but not page refresh in sandboxed env)
 let memoryToken: string | null = null;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -68,15 +41,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Funzione per fare fetch con il token di autenticazione
   const authFetch = useCallback(async (url: string, options: RequestInit = {}) => {
     const headers = new Headers(options.headers || {});
+    headers.set('Content-Type', 'application/json');
     
-    // Only set Content-Type to JSON if not already set and body is not FormData
-    if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
-      headers.set('Content-Type', 'application/json');
-    }
-    
-    // Use memory token, state token, or cookie token
-    const cookieToken = getCookie(TOKEN_COOKIE_NAME);
-    const currentToken = memoryToken || token || cookieToken;
+    // Use memory token or state token
+    const currentToken = memoryToken || token;
     if (currentToken) {
       headers.set('Authorization', `Bearer ${currentToken}`);
     }
@@ -89,9 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchSession = useCallback(async () => {
     try {
-      // Try to get token from cookie first (persists across page reloads)
-      const cookieToken = getCookie(TOKEN_COOKIE_NAME);
-      const currentToken = cookieToken || memoryToken;
+      const currentToken = memoryToken;
       
       if (!currentToken) {
         setUser(null);
@@ -110,20 +76,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.authenticated && data.user) {
         setUser(data.user);
         setToken(currentToken);
-        // Ensure token is also in memory for this session
-        memoryToken = currentToken;
       } else {
         setUser(null);
         setToken(null);
         memoryToken = null;
-        deleteCookie(TOKEN_COOKIE_NAME);
       }
     } catch (error) {
       console.error('[Auth] Error fetching session:', error);
       setUser(null);
       setToken(null);
       memoryToken = null;
-      deleteCookie(TOKEN_COOKIE_NAME);
     } finally {
       setIsLoading(false);
     }
@@ -144,9 +106,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
 
       if (response.ok && data.success && data.token) {
-        // Save token in cookie for persistence across page reloads
-        setCookie(TOKEN_COOKIE_NAME, data.token, TOKEN_EXPIRY_DAYS);
-        // Also keep in memory for current session
         memoryToken = data.token;
         setToken(data.token);
         setUser(data.user);
@@ -165,8 +124,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('[Auth] Logout error:', error);
     } finally {
-      // Clear both cookie and memory token
-      deleteCookie(TOKEN_COOKIE_NAME);
       memoryToken = null;
       setToken(null);
       setUser(null);

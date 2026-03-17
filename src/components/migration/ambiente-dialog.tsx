@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/components/migration/auth-provider';
 import {
   Dialog,
   DialogContent,
@@ -50,7 +49,6 @@ export function AmbienteDialog({
   selectedApplicazioneId,
   onSuccess,
 }: AmbienteDialogProps) {
-  const { authFetch } = useAuth();
   const [tipologia, setTipologia] = useState<TipologiaAmbiente>('TEST_INTERNO');
   const [tipoNodo, setTipoNodo] = useState<TipoNodo>('SINGOLO');
   const [statoAvanzamento, setStatoAvanzamento] = useState<StatoAvanzamento>('NON_INIZIATO');
@@ -157,8 +155,9 @@ export function AmbienteDialog({
       const url = isEditing ? `/api/ambienti/${ambiente!.id}` : '/api/ambienti';
       const method = isEditing ? 'PUT' : 'POST';
 
-      const response = await authFetch(url, {
+      const response = await fetch(url, {
         method,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tipologia,
           tipoNodo,

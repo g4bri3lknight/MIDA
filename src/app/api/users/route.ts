@@ -68,9 +68,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verifica se username già esiste
-    const existing = await db.user.findUnique({
-      where: { username },
+    // Verifica se username già esistente (case insensitive)
+    const existing = await db.user.findFirst({
+      where: {
+        username: username.toLowerCase(),
+      },
     });
 
     if (existing) {
@@ -85,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     const newUser = await db.user.create({
       data: {
-        username,
+        username: username.toLowerCase(),
         password: hashedPassword,
         name,
         email,

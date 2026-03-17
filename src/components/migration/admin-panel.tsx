@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { Upload, FileSpreadsheet, Loader2, CheckCircle, XCircle, Download } from 'lucide-react';
-import { useAuth } from '@/components/migration/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -30,7 +29,6 @@ interface AdminPanelProps {
 }
 
 export function AdminPanel({ onImportSuccess }: AdminPanelProps) {
-  const { authFetch } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -70,7 +68,7 @@ export function AdminPanel({ onImportSuccess }: AdminPanelProps) {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await authFetch('/api/import', {
+      const response = await fetch('/api/import', {
         method: 'POST',
         body: formData,
       });

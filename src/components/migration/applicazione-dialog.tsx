@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/components/migration/auth-provider';
 import {
   Dialog,
   DialogContent,
@@ -40,7 +39,6 @@ export function ApplicazioneDialog({
   selectedServizioId,
   onSuccess,
 }: ApplicazioneDialogProps) {
-  const { authFetch } = useAuth();
   const [nome, setNome] = useState('');
   const [descrizione, setDescrizione] = useState('');
   const [statoMigrazioneCodice, setStatoMigrazioneCodice] = useState<StatoMigrazioneCodice>('DA_RIPROGETTARE');
@@ -84,8 +82,9 @@ export function ApplicazioneDialog({
       const url = isEditing ? `/api/applicazioni/${applicazione!.id}` : '/api/applicazioni';
       const method = isEditing ? 'PUT' : 'POST';
 
-      const response = await authFetch(url, {
+      const response = await fetch(url, {
         method,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nome: nome.trim(),
           descrizione: descrizione.trim() || null,

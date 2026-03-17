@@ -4,24 +4,23 @@ import bcrypt from 'bcryptjs';
 async function seedAdmin() {
   console.log('Seeding admin user...');
   
-  // Delete existing admin to recreate with correct password
-  const existingAdmin = await db.user.findUnique({
+  // Delete existing admin if exists (to reset any issues)
+  const existingAdmin = await db.user.findFirst({
     where: { username: 'admin' },
   });
 
   if (existingAdmin) {
-    // Delete and recreate to ensure correct password hash
+    console.log('Deleting existing admin user...');
     await db.user.delete({
-      where: { username: 'admin' },
+      where: { id: existingAdmin.id },
     });
-    console.log('Deleted existing admin user');
   }
 
   const hashedPassword = await bcrypt.hash('admin123', 10);
 
   const admin = await db.user.create({
     data: {
-      username: 'admin',
+      username: 'admin', // salvato in lowercase
       password: hashedPassword,
       name: 'Administrator',
       email: 'admin@mida.local',

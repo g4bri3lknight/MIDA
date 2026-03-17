@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 
 // POST - Crea nuovo ambiente
 export async function POST(request: NextRequest) {
-  const authCheck = await requireEdit(request);
+  const authCheck = await requireEdit();
   if (!authCheck.authorized) {
     return authCheck.response;
   }

@@ -89,18 +89,8 @@ const TYPE_LABELS: Record<string, string> = {
   TEST: 'Test',
 };
 
-interface EmailSettingsPanelProps {
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
-}
-
-export function EmailSettingsPanel({ open: externalOpen, onOpenChange: externalSetOpen }: EmailSettingsPanelProps = {}) {
-  const [internalOpen, setInternalOpen] = useState(false);
-  
-  // Use external state if provided, otherwise use internal
-  const open = externalOpen !== undefined ? externalOpen : internalOpen;
-  const setOpen = externalSetOpen !== undefined ? externalSetOpen : setInternalOpen;
-  
+export function EmailSettingsPanel() {
+  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -382,6 +372,11 @@ export function EmailSettingsPanel({ open: externalOpen, onOpenChange: externalS
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="icon" title="Impostazioni Email">
+          <Mail className="h-4 w-4" />
+        </Button>
+      </DialogTrigger>
       <DialogContent className="max-w-2xl h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">

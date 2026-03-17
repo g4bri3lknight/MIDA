@@ -36,6 +36,9 @@ import {
   List,
   CheckCircle,
   XCircle,
+  KeyRound,
+  Copy,
+  Check,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -81,7 +84,10 @@ export function UserManagementPanel({ open, onOpenChange }: UserManagementPanelP
   const [users, setUsers] = useState<User[]>([]);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [newPassword, setNewPassword] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('list');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -153,6 +159,44 @@ export function UserManagementPanel({ open, onOpenChange }: UserManagementPanelP
   const handleDelete = (user: User) => {
     setSelectedUser(user);
     setDeleteDialogOpen(true);
+  };
+
+  const handleResetPassword = async (user: User) => {
+    setSelectedUser(user);
+    setNewPassword(null);
+    setResetPasswordDialogOpen(true);
+    setSaving(true);
+    setMessage(null);
+    
+    try {
+      const response = await authFetch(`/api/users/${user.id}/reset-password`, {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setMessage({ type: 'error', text: data.error || 'Errore nel reset della password' });
+        setResetPasswordDialogOpen(false);
+        return;
+      }
+
+      setNewPassword(data.newPassword);
+    } catch (error) {
+      console.error('Errore:', error);
+      setMessage({ type: 'error', text: 'Errore di connessione' });
+      setResetPasswordDialogOpen(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCopyPassword = async () => {
+    if (newPassword) {
+      await navigator.clipboard.writeText(newPassword);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   const handleCreate = async () => {
@@ -391,6 +435,14 @@ export function UserManagementPanel({ open, onOpenChange }: UserManagementPanelP
                               {ROLE_ICONS[user.role]}
                               {ROLE_LABELS[user.role]}
                             </Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleResetPassword(user)}
+                              title="Reset password"
+                            >
+                              <KeyRound className="h-4 w-4" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"
@@ -714,6 +766,91 @@ export function UserManagementPanel({ open, onOpenChange }: UserManagementPanelP
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={resetPasswordDialogOpen} onOpenChange={setResetPasswordDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5" />
+              Reset Password
+            </DialogTitle>
+            <DialogDescription>
+              {saving ? (
+                'Generazione nuova password in corso...'
+              ) : newPassword ? (
+                `Nuova password generata per ${selectedUser?.username}`
+              ) : (
+                'Errore durante il reset della password'
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {saving ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : newPassword ? (
+            <div className="space-y-4">
+              <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950">
+                <KeyRound className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-amber-700 dark:text-amber-300">
+                  Copia la password ora! Non sarà più visualizzata dopo la chiusura.
+                </AlertDescription>
+              </Alert>
+              
+              <div className="space-y-2">
+                <Label>Nuova Password</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={newPassword}
+                    readOnly
+                    className="font-mono text-lg"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={handleCopyPassword}
+                    className="shrink-0"
+                  >
+                    {copied ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="bg-muted/50 rounded-lg p-3 text-sm text-muted-foreground">
+                <p><strong>Utente:</strong> {selectedUser?.username}</p>
+                {selectedUser?.name && <p><strong>Nome:</strong> {selectedUser.name}</p>}
+                {selectedUser?.email && <p><strong>Email:</strong> {selectedUser.email}</p>}
+              </div>
+            </div>
+          ) : (
+            <Alert variant="destructive">
+              <XCircle className="h-4 w-4" />
+              <AlertDescription>
+                {message?.text || 'Errore durante il reset della password'}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setResetPasswordDialogOpen(false);
+                setNewPassword(null);
+                setCopied(false);
+              }}
+              disabled={saving}
+            >
+              Chiudi
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -249,7 +249,7 @@ export function DashboardKpi({ onFilterByApplicazione }: DashboardKpiProps) {
 
       {/* Alert Section */}
       {(alert.ambientiRitardo.length > 0 || alert.prossimeScadenze.length > 0) && (
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Ambienti in Ritardo */}
           {alert.ambientiRitardo.length > 0 && (
             <Card className="border-red-200">
@@ -260,26 +260,26 @@ export function DashboardKpi({ onFilterByApplicazione }: DashboardKpiProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 max-h-80 overflow-y-auto">
+                <div className="space-y-2 max-h-48 overflow-y-auto">
                   {alert.ambientiRitardo.map((amb, i) => (
                     <div 
                       key={i} 
-                      className="flex flex-col p-2 bg-red-50 dark:bg-red-950 rounded-lg cursor-pointer hover:bg-red-100 dark:hover:bg-red-900 transition-colors group border border-red-100 dark:border-red-900"
+                      className="flex items-center justify-between p-2 bg-red-50 dark:bg-red-950 rounded-lg cursor-pointer hover:bg-red-100 dark:hover:bg-red-900 transition-colors group"
                       onClick={() => handleAlertClick(amb.applicazioneId)}
                       title="Clicca per filtrare questa applicazione"
                     >
-                      <div className="flex items-start justify-between gap-1">
-                        <p className="text-xs font-medium truncate group-hover:underline flex-1">{amb.applicazione}</p>
-                        <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4 shrink-0">
-                          {amb.giorniRitardo}gg
-                        </Badge>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate group-hover:underline">{amb.applicazione}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {amb.servizio} • {TIPOLOGIA_AMBIENTE_LABELS[amb.tipologia as keyof typeof TIPOLOGIA_AMBIENTE_LABELS]}
+                        </p>
                       </div>
-                      <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                        {amb.servizio}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {TIPOLOGIA_AMBIENTE_LABELS[amb.tipologia as keyof typeof TIPOLOGIA_AMBIENTE_LABELS]}
-                      </p>
+                      <div className="text-right shrink-0 ml-2 flex items-center gap-1">
+                        <Badge variant="destructive" className="text-xs">
+                          {amb.giorniRitardo} gg ritardo
+                        </Badge>
+                        <ExternalLink className="h-3 w-3 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -297,26 +297,26 @@ export function DashboardKpi({ onFilterByApplicazione }: DashboardKpiProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 max-h-80 overflow-y-auto">
+                <div className="space-y-2 max-h-48 overflow-y-auto">
                   {alert.prossimeScadenze.map((amb, i) => (
                     <div 
                       key={i} 
-                      className="flex flex-col p-2 bg-yellow-50 dark:bg-yellow-950 rounded-lg cursor-pointer hover:bg-yellow-100 dark:hover:bg-yellow-900 transition-colors group border border-yellow-100 dark:border-yellow-900"
+                      className="flex items-center justify-between p-2 bg-yellow-50 dark:bg-yellow-950 rounded-lg cursor-pointer hover:bg-yellow-100 dark:hover:bg-yellow-900 transition-colors group"
                       onClick={() => handleAlertClick(amb.applicazioneId)}
                       title="Clicca per filtrare questa applicazione"
                     >
-                      <div className="flex items-start justify-between gap-1">
-                        <p className="text-xs font-medium truncate group-hover:underline flex-1">{amb.applicazione}</p>
-                        <Badge className="bg-yellow-100 text-yellow-800 text-[10px] px-1 py-0 h-4 shrink-0">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate group-hover:underline">{amb.applicazione}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {amb.servizio} • {TIPOLOGIA_AMBIENTE_LABELS[amb.tipologia as keyof typeof TIPOLOGIA_AMBIENTE_LABELS]}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0 ml-2 flex items-center gap-1">
+                        <Badge className="bg-yellow-100 text-yellow-800 text-xs">
                           {formatDate(amb.dataFine)}
                         </Badge>
+                        <ExternalLink className="h-3 w-3 text-yellow-600 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
-                      <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                        {amb.servizio}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {TIPOLOGIA_AMBIENTE_LABELS[amb.tipologia as keyof typeof TIPOLOGIA_AMBIENTE_LABELS]}
-                      </p>
                     </div>
                   ))}
                 </div>

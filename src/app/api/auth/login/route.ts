@@ -17,11 +17,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = await db.user.findUnique({
-      where: { username },
+    // SQLite non supporta mode: 'insensitive', usiamo lowercase
+    const user = await db.user.findFirst({
+      where: {
+        username: username.toLowerCase(),
+      },
+    });
+
+    console.log('[Auth] Login attempt:', { 
+      username: username.toLowerCase(), 
+      userFound: !!user,
+      userActive: user?.active,
+      userRole: user?.role 
     });
 
     if (!user || !user.active) {
+      console.log('[Auth] Login failed: user not found or inactive');
       return NextResponse.json(
         { error: 'Credenziali non valide' },
         { status: 401 }

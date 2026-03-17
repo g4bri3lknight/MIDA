@@ -28,7 +28,7 @@ export async function GET() {
 // POST - Crea nuovo servizio (richiede permessi di modifica)
 export async function POST(request: NextRequest) {
   // Verifica autenticazione e permessi
-  const authCheck = await requireEdit(request);
+  const authCheck = await requireEdit();
   if (!authCheck.authorized) {
     return authCheck.response;
   }

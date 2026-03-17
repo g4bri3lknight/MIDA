@@ -66,7 +66,7 @@ import { useAuth } from '@/components/migration/auth-provider';
 import { UserButton } from '@/components/migration/user-button';
 
 export default function MigrationDashboard() {
-  const { canEdit, canDelete, canImport, canManageUsers, authFetch } = useAuth();
+  const { canEdit, canDelete, canImport, canManageUsers } = useAuth();
 
   const [servizi, setServizi] = useState<Servizio[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,7 +100,6 @@ export default function MigrationDashboard() {
   // Export state
   const [exporting, setExporting] = useState(false);
   const [userManagementOpen, setUserManagementOpen] = useState(false);
-  const [emailSettingsOpen, setEmailSettingsOpen] = useState(false);
 
   // Global search
   const [globalSearch, setGlobalSearch] = useState('');
@@ -220,12 +219,9 @@ export default function MigrationDashboard() {
 
     try {
       const endpoint = `/api/${endpoints[deletingItem.type]}/${deletingItem.id}`;
-      const response = await authFetch(endpoint, { method: 'DELETE' });
+      const response = await fetch(endpoint, { method: 'DELETE' });
       
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Errore durante l\'eliminazione');
-      }
+      if (!response.ok) throw new Error('Errore durante l\'eliminazione');
       
       toast.success('Elemento eliminato con successo');
       fetchData();
@@ -439,7 +435,10 @@ export default function MigrationDashboard() {
             const event = new CustomEvent('openAuditLog');
             window.dispatchEvent(event);
           }}
-          onOpenEmailSettings={() => setEmailSettingsOpen(true)}
+          onOpenEmailSettings={() => {
+            const event = new CustomEvent('openEmailSettings');
+            window.dispatchEvent(event);
+          }}
           onOpenUserManagement={() => setUserManagementOpen(true)}
           onNewServizio={handleAddServizio}
         />
@@ -984,7 +983,7 @@ export default function MigrationDashboard() {
       
       {/* Hidden panels - opened via events */}
       <AdminPanel onImportSuccess={fetchData} />
-      <EmailSettingsPanel open={emailSettingsOpen} onOpenChange={setEmailSettingsOpen} />
+      <EmailSettingsPanel />
       <AuditLogPanel />
     </div>
   );

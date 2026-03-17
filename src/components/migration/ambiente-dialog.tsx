@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select';
 import { Ambiente, Servizio, TipologiaAmbiente, TipoNodo, StatoAvanzamento, TIPOLOGIA_AMBIENTE_LABELS, STATO_AVANZAMENTO_LABELS } from '@/types/migration';
 import { toast } from 'sonner';
+import { useAuth } from './auth-provider';
 
 interface AmbienteDialogProps {
   open: boolean;
@@ -49,6 +50,7 @@ export function AmbienteDialog({
   selectedApplicazioneId,
   onSuccess,
 }: AmbienteDialogProps) {
+  const { authFetch } = useAuth();
   const [tipologia, setTipologia] = useState<TipologiaAmbiente>('TEST_INTERNO');
   const [tipoNodo, setTipoNodo] = useState<TipoNodo>('SINGOLO');
   const [statoAvanzamento, setStatoAvanzamento] = useState<StatoAvanzamento>('NON_INIZIATO');
@@ -155,9 +157,8 @@ export function AmbienteDialog({
       const url = isEditing ? `/api/ambienti/${ambiente!.id}` : '/api/ambienti';
       const method = isEditing ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tipologia,
           tipoNodo,

@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select';
 import { Applicazione, Servizio, StatoMigrazioneCodice, STATO_MIGRAZIONE_CODICE_LABELS } from '@/types/migration';
 import { toast } from 'sonner';
+import { useAuth } from './auth-provider';
 
 interface ApplicazioneDialogProps {
   open: boolean;
@@ -39,6 +40,7 @@ export function ApplicazioneDialog({
   selectedServizioId,
   onSuccess,
 }: ApplicazioneDialogProps) {
+  const { authFetch } = useAuth();
   const [nome, setNome] = useState('');
   const [descrizione, setDescrizione] = useState('');
   const [statoMigrazioneCodice, setStatoMigrazioneCodice] = useState<StatoMigrazioneCodice>('DA_RIPROGETTARE');
@@ -82,9 +84,8 @@ export function ApplicazioneDialog({
       const url = isEditing ? `/api/applicazioni/${applicazione!.id}` : '/api/applicazioni';
       const method = isEditing ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nome: nome.trim(),
           descrizione: descrizione.trim() || null,

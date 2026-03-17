@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Servizio } from '@/types/migration';
 import { toast } from 'sonner';
+import { useAuth } from './auth-provider';
 
 interface ServizioDialogProps {
   open: boolean;
@@ -23,6 +24,7 @@ interface ServizioDialogProps {
 }
 
 export function ServizioDialog({ open, onOpenChange, servizio, onSuccess }: ServizioDialogProps) {
+  const { authFetch } = useAuth();
   const [nome, setNome] = useState('');
   const [descrizione, setDescrizione] = useState('');
   const [loading, setLoading] = useState(false);
@@ -55,9 +57,8 @@ export function ServizioDialog({ open, onOpenChange, servizio, onSuccess }: Serv
       const url = isEditing ? `/api/servizi/${servizio!.id}` : '/api/servizi';
       const method = isEditing ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nome: nome.trim(),
           descrizione: descrizione.trim() || null,

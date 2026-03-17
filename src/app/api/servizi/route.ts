@@ -28,7 +28,7 @@ export async function GET() {
 // POST - Crea nuovo servizio (richiede permessi di modifica)
 export async function POST(request: NextRequest) {
   // Verifica autenticazione e permessi
-  const authCheck = await requireEdit();
+  const authCheck = await requireEdit(request);
   if (!authCheck.authorized) {
     return authCheck.response;
   }
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     // Registra la creazione nell'audit log
     const userAgent = request.headers.get('user-agent') || undefined;
-    await logCreate('SERVIZIO', servizio.id, servizio.nome, userAgent, authCheck.user?.username);
+    await logCreate('SERVIZIO', servizio.id, servizio.nome, userAgent, authCheck.user?.id);
 
     // Invia notifica email
     await sendCreateNotification('SERVIZIO', servizio.nome, descrizione || undefined);

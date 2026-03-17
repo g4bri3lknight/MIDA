@@ -66,7 +66,7 @@ import { useAuth } from '@/components/migration/auth-provider';
 import { UserButton } from '@/components/migration/user-button';
 
 export default function MigrationDashboard() {
-  const { canEdit, canDelete, canImport, canManageUsers } = useAuth();
+  const { canEdit, canDelete, canImport, canManageUsers, authFetch } = useAuth();
 
   const [servizi, setServizi] = useState<Servizio[]>([]);
   const [loading, setLoading] = useState(true);
@@ -219,7 +219,7 @@ export default function MigrationDashboard() {
 
     try {
       const endpoint = `/api/${endpoints[deletingItem.type]}/${deletingItem.id}`;
-      const response = await fetch(endpoint, { method: 'DELETE' });
+      const response = await authFetch(endpoint, { method: 'DELETE' });
       
       if (!response.ok) throw new Error('Errore durante l\'eliminazione');
       

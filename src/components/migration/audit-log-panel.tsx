@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +22,10 @@ import {
   RefreshCw,
   ChevronRight,
   ChevronDown,
+  Users,
+  KeyRound,
 } from 'lucide-react';
+import { useAuth } from './auth-provider';
 
 interface AuditLog {
   id: string;
@@ -37,34 +39,42 @@ interface AuditLog {
   createdAt: string;
 }
 
-const ACTION_ICONS = {
+const ACTION_ICONS: Record<string, typeof Plus> = {
   CREATE: Plus,
   UPDATE: Pencil,
   DELETE: Trash2,
+  PASSWORD_RESET: KeyRound,
+  PASSWORD_CHANGE: KeyRound,
 };
 
-const ACTION_COLORS = {
+const ACTION_COLORS: Record<string, string> = {
   CREATE: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
   UPDATE: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
   DELETE: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  PASSWORD_RESET: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+  PASSWORD_CHANGE: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
 };
 
-const ACTION_LABELS = {
+const ACTION_LABELS: Record<string, string> = {
   CREATE: 'Creato',
   UPDATE: 'Modificato',
   DELETE: 'Eliminato',
+  PASSWORD_RESET: 'Password Resettata',
+  PASSWORD_CHANGE: 'Password Cambiata',
 };
 
-const ENTITY_ICONS = {
+const ENTITY_ICONS: Record<string, typeof Server> = {
   SERVIZIO: Server,
   APPLICAZIONE: Box,
   AMBIENTE: Monitor,
+  USER: Users,
 };
 
-const ENTITY_LABELS = {
+const ENTITY_LABELS: Record<string, string> = {
   SERVIZIO: 'Servizio',
   APPLICAZIONE: 'Applicazione',
   AMBIENTE: 'Ambiente',
+  USER: 'Utente',
 };
 
 // Traduzione dei nomi dei campi in italiano
@@ -97,31 +107,43 @@ const FIELD_LABELS: Record<string, string> = {
 };
 
 export function AuditLogPanel() {
+  const { authFetch } = useAuth();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
+  const fetchLogs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await authFetch('/api/audit?limit=200');
+      if (response.ok) {
+        const data = await response.json();
+        setLogs(data);
+      } else {
+        console.error('Errore risposta audit log:', response.status, response.statusText);
+        setLogs([]);
+      }
+    } catch (error) {
+      console.error('Errore caricamento audit log:', error);
+      setLogs([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [authFetch]);
+
+  // Listen for custom event to open dialog
+  useEffect(() => {
+    const handleOpenDialog = () => setOpen(true);
+    window.addEventListener('openAuditLog', handleOpenDialog);
+    return () => window.removeEventListener('openAuditLog', handleOpenDialog);
+  }, []);
+
   useEffect(() => {
     if (open) {
       fetchLogs();
     }
-  }, [open]);
-
-  const fetchLogs = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/audit?limit=200');
-      if (response.ok) {
-        const data = await response.json();
-        setLogs(data);
-      }
-    } catch (error) {
-      console.error('Errore caricamento audit log:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [open, fetchLogs]);
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleString('it-IT', {
@@ -166,11 +188,6 @@ export function AuditLogPanel() {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button variant="outline" size="icon" title="Storico modifiche">
-          <History className="h-4 w-4" />
-        </Button>
-      </SheetTrigger>
       <SheetContent className="w-[400px] sm:w-[540px]">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">

@@ -1,9 +1,9 @@
 import { db } from './db';
 
 export interface AuditLogEntry {
-  entityType: 'SERVIZIO' | 'APPLICAZIONE' | 'AMBIENTE';
+  entityType: 'SERVIZIO' | 'APPLICAZIONE' | 'AMBIENTE' | 'USER';
   entityId: string;
-  action: 'CREATE' | 'UPDATE' | 'DELETE';
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'PASSWORD_RESET' | 'PASSWORD_CHANGE';
   entityName: string;
   fieldName?: string;
   oldValue?: string;

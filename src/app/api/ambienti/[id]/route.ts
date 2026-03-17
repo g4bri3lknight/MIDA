@@ -39,7 +39,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authCheck = await requireEdit();
+  const authCheck = await requireEdit(request);
   if (!authCheck.authorized) {
     return authCheck.response;
   }
@@ -153,7 +153,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authCheck = await requireDelete();
+  const authCheck = await requireDelete(request);
   if (!authCheck.authorized) {
     return authCheck.response;
   }

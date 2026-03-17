@@ -7,7 +7,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -100,6 +99,13 @@ export function EmailSettingsPanel() {
   const [saveResult, setSaveResult] = useState<TestResult>({ type: null, message: '' });
   const [showPassword, setShowPassword] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  // Listen for custom event to open dialog
+  useEffect(() => {
+    const handleOpenDialog = () => setOpen(true);
+    window.addEventListener('openEmailSettings', handleOpenDialog);
+    return () => window.removeEventListener('openEmailSettings', handleOpenDialog);
+  }, []);
 
   const [formData, setFormData] = useState({
     smtpHost: '',
@@ -372,11 +378,6 @@ export function EmailSettingsPanel() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="icon" title="Impostazioni Email">
-          <Mail className="h-4 w-4" />
-        </Button>
-      </DialogTrigger>
       <DialogContent className="max-w-2xl h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">

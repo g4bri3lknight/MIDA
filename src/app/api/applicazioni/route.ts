@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
 // POST - Crea nuova applicazione
 export async function POST(request: NextRequest) {
-  const authCheck = await requireEdit();
+  const authCheck = await requireEdit(request);
   if (!authCheck.authorized) {
     return authCheck.response;
   }

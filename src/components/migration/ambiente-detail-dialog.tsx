@@ -59,7 +59,16 @@ export function AmbienteDetailDialog({
             <Badge className={`${STATO_AVANZAMENTO_COLORS[ambiente.statoAvanzamento || 'NON_INIZIATO']} ${STATO_AVANZAMENTO_TEXT_COLORS[ambiente.statoAvanzamento || 'NON_INIZIATO']} text-sm px-2.5 py-0.5`}>
               {STATO_AVANZAMENTO_LABELS[ambiente.statoAvanzamento || 'NON_INIZIATO']}
             </Badge>
-            <Badge variant="outline" className="font-mono text-sm px-2.5 py-0.5">
+            <Badge
+              variant="outline"
+              className={`font-mono text-sm px-2.5 py-0.5 ${ambiente.richiestaCHG ? 'cursor-pointer hover:bg-accent transition-colors' : ''}`}
+              title={ambiente.richiestaCHG ? 'Clicca per copiare' : undefined}
+              onClick={() => {
+                if (ambiente.richiestaCHG) {
+                  navigator.clipboard.writeText(ambiente.richiestaCHG);
+                }
+              }}
+            >
               {ambiente.richiestaCHG ? `CHG: ${ambiente.richiestaCHG}` : 'Nessuna CHG'}
             </Badge>
           </DialogTitle>

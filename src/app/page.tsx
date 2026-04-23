@@ -898,7 +898,15 @@ export default function MigrationDashboard() {
                                                   {STATO_AVANZAMENTO_LABELS[ambiente.statoAvanzamento || 'NON_INIZIATO']}
                                                 </Badge>
                                                 {ambiente.richiestaCHG && (
-                                                  <Badge variant="outline" className="text-xs font-mono shrink-0">
+                                                  <Badge
+                                                    variant="outline"
+                                                    className="text-xs font-mono shrink-0 cursor-pointer hover:bg-accent transition-colors"
+                                                    title="Clicca per copiare"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      navigator.clipboard.writeText(ambiente.richiestaCHG!);
+                                                    }}
+                                                  >
                                                     CHG: {ambiente.richiestaCHG}
                                                   </Badge>
                                                 )}

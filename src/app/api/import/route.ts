@@ -221,14 +221,21 @@ function buildColumnMap(sheet: XLSX.WorkSheet, headerRow: number, merges: XLSX.R
     foundHeaders.set(col, val);
   }
 
+  // Track which column indices are already assigned to avoid double-mapping
+  const usedColumns = new Set<number>();
+
   // Match ogni definizione di colonna con gli header trovati
   for (const colDef of COLUMN_DEFINITIONS) {
     if (colMap.has(colDef.key)) continue; // già trovato
 
     for (const [colIdx, headerText] of foundHeaders) {
+      // Salta colonne già assegnate ad un'altra chiave
+      if (usedColumns.has(colIdx)) continue;
+
       // Match esatto
       if (colDef.aliases.includes(headerText)) {
         colMap.set(colDef.key, colIdx);
+        usedColumns.add(colIdx);
         break;
       }
 
@@ -238,6 +245,7 @@ function buildColumnMap(sheet: XLSX.WorkSheet, headerRow: number, merges: XLSX.R
           // Evita falsi positivi (es. "macchine ws" non deve matchare "macchine jboss")
           if (alias.length >= 3 || headerText === alias) {
             colMap.set(colDef.key, colIdx);
+            usedColumns.add(colIdx);
             break;
           }
         }
@@ -674,16 +682,6 @@ function extractCHG(note: string | undefined): string | null {
   return null;
 }
 
-// Rimuove il codice CHG dalle note
-function removeCHGFromNote(note: string | undefined): string | null {
-  if (!note) return null;
-  
-  // Rimuove il pattern CHG (con eventuali spazi/trattini) dalle note
-  const cleaned = note.replace(/CHG[\s\-]*\d+/gi, '').trim();
-  
-  return cleaned || null;
-}
-
 // Cancella tutti i file dalla cartella upload
 function cleanupUploadFolder(): void {
   const uploadDir = path.join(process.cwd(), 'upload');
@@ -879,7 +877,6 @@ export async function POST(request: NextRequest) {
           try {
             // Estrai la CHG dalle note se presente
             const chgEstratta = extractCHG(amb.note);
-            const notePulite = chgEstratta ? removeCHGFromNote(amb.note) : amb.note;
             
             const tipologiaEnum = mapTipologiaAmbiente(amb.ambiente) as any;
 
@@ -892,7 +889,7 @@ export async function POST(request: NextRequest) {
             });
 
             if (existingAmbiente) {
-              // Aggiorna l'ambiente esistente
+              // Aggiorna l'ambiente esistente - aggiorna SEMPRE tutti i campi con i dati del file
               await db.ambiente.update({
                 where: { id: existingAmbiente.id },
                 data: {
@@ -910,11 +907,11 @@ export async function POST(request: NextRequest) {
                   macchineWS2: amb.macchineWS2 || null,
                   macchineJBoss2: amb.macchineJBoss2 || null,
                   nomeMacchina2: amb.macchinaMigrare2 || null,
-                  // Altri campi - aggiorna solo se presenti nel file
-                  ...(amb.riscontri ? { riscontri: amb.riscontri } : {}),
-                  ...(amb.conf ? { configurazioni: amb.conf } : {}),
-                  ...(notePulite ? { note: notePulite } : {}),
-                  ...(chgEstratta ? { richiestaCHG: chgEstratta } : {}),
+                  // Altri campi - aggiorna sempre con i valori dal file (anche se vuoti)
+                  riscontri: amb.riscontri || null,
+                  configurazioni: amb.conf || null,
+                  note: amb.note || null,
+                  richiestaCHG: chgEstratta || null,
                 },
               });
               results.ambientiAggiornati++;
@@ -942,7 +939,7 @@ export async function POST(request: NextRequest) {
                   // Altri campi
                   richiestaCHG: chgEstratta,
                   riscontri: amb.riscontri || null,
-                  note: notePulite || null,
+                  note: amb.note || null,
                   configurazioni: amb.conf || null,
                 },
               });

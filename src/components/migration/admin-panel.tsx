@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Upload, FileSpreadsheet, Loader2, CheckCircle, XCircle, Download } from 'lucide-react';
+import { useAuth } from '@/components/migration/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -21,6 +22,10 @@ interface ImportResult {
     servizi: number;
     applicazioni: number;
     ambienti: number;
+    ambientiAggiornati: number;
+    ambientiDuplicati: number;
+    errors: string[];
+    debug: string[];
   };
 }
 
@@ -29,6 +34,7 @@ interface AdminPanelProps {
 }
 
 export function AdminPanel({ onImportSuccess }: AdminPanelProps) {
+  const { authFetch } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -68,7 +74,7 @@ export function AdminPanel({ onImportSuccess }: AdminPanelProps) {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('/api/import', {
+      const response = await authFetch('/api/import', {
         method: 'POST',
         body: formData,
       });
@@ -227,6 +233,12 @@ export function AdminPanel({ onImportSuccess }: AdminPanelProps) {
                   <p>Servizi creati: {result.results?.servizi}</p>
                   <p>Applicazioni create: {result.results?.applicazioni}</p>
                   <p>Ambienti creati: {result.results?.ambienti}</p>
+                  {(result.results?.ambientiAggiornati ?? 0) > 0 && (
+                    <p className="text-blue-600">Ambienti aggiornati (già esistenti): {result.results?.ambientiAggiornati}</p>
+                  )}
+                  {(result.results?.errors?.length ?? 0) > 0 && (
+                    <p className="text-amber-600">Errori: {result.results?.errors?.length}</p>
+                  )}
                 </div>
               </AlertDescription>
             </Alert>

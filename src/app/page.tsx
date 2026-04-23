@@ -117,9 +117,11 @@ export default function MigrationDashboard() {
       if (!response.ok) throw new Error('Errore nel caricamento');
       const data = await response.json();
       setServizi(data);
+      return data;
     } catch (error) {
       console.error('Errore:', error);
       toast.error('Errore nel caricamento dei dati');
+      return null;
     } finally {
       setLoading(false);
     }
@@ -236,6 +238,23 @@ export default function MigrationDashboard() {
 
   const handleDialogSuccess = () => {
     fetchData();
+  };
+
+  // Dopo salvataggio ambiente: ricarica dati e riapri il detail dialog
+  const handleAmbienteSave = async (savedId?: string) => {
+    const data = await fetchData();
+    if (savedId && data) {
+      for (const serv of data) {
+        for (const app of serv.applicazioni || []) {
+          const amb = (app.ambienti || []).find(a => a.id === savedId);
+          if (amb) {
+            setViewingAmbiente(amb);
+            setAmbienteDetailOpen(true);
+            return;
+          }
+        }
+      }
+    }
   };
 
   // Get unique values for filters
@@ -963,7 +982,7 @@ export default function MigrationDashboard() {
         ambiente={editingAmbiente}
         servizi={servizi}
         selectedApplicazioneId={selectedApplicazioneId}
-        onSuccess={handleDialogSuccess}
+        onSuccess={handleAmbienteSave}
       />
       <AmbienteDetailDialog
         open={ambienteDetailOpen}

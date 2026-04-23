@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { Loader2 } from 'lucide-react';
 
 export type UserRole = 'ADMIN' | 'EDITOR';
@@ -30,21 +30,56 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// In-memory token storage (survives within session but not page refresh in sandboxed env)
-let memoryToken: string | null = null;
+const TOKEN_KEY = 'mida_auth_token';
+
+// Helpers per localStorage (safe per SSR)
+function getStoredToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function setStoredToken(t: string | null): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (t) {
+      localStorage.setItem(TOKEN_KEY, t);
+    } else {
+      localStorage.removeItem(TOKEN_KEY);
+    }
+  } catch {
+    // localStorage non disponibile
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Ref per avere sempre il token più recente nei callback senza ricrearli
+  const tokenRef = useRef<string | null>(null);
+
+  // Sincronizza ref con state/token
+  useEffect(() => {
+    tokenRef.current = token;
+  }, [token]);
 
   // Funzione per fare fetch con il token di autenticazione
   const authFetch = useCallback(async (url: string, options: RequestInit = {}) => {
     const headers = new Headers(options.headers || {});
-    headers.set('Content-Type', 'application/json');
     
-    // Use memory token or state token
-    const currentToken = memoryToken || token;
+    // Only set Content-Type to JSON if body is not FormData
+    if (!(options.body instanceof FormData)) {
+      if (!headers.has('Content-Type')) {
+        headers.set('Content-Type', 'application/json');
+      }
+    }
+    
+    // Usa il token dal ref (sempre aggiornato) o dallo state
+    const currentToken = tokenRef.current || token;
     if (currentToken) {
       headers.set('Authorization', `Bearer ${currentToken}`);
     }
@@ -57,9 +92,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchSession = useCallback(async () => {
     try {
-      const currentToken = memoryToken;
+      // Prima prova a leggere il token da localStorage
+      const storedToken = getStoredToken();
       
-      if (!currentToken) {
+      if (!storedToken) {
         setUser(null);
         setToken(null);
         setIsLoading(false);
@@ -68,24 +104,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const response = await fetch('/api/auth/session', {
         headers: {
-          'Authorization': `Bearer ${currentToken}`,
+          'Authorization': `Bearer ${storedToken}`,
         },
       });
       const data = await response.json();
       
       if (data.authenticated && data.user) {
         setUser(data.user);
-        setToken(currentToken);
+        setToken(storedToken);
+        tokenRef.current = storedToken;
       } else {
+        // Token non valido, rimuovi
         setUser(null);
         setToken(null);
-        memoryToken = null;
+        tokenRef.current = null;
+        setStoredToken(null);
       }
     } catch (error) {
       console.error('[Auth] Error fetching session:', error);
       setUser(null);
       setToken(null);
-      memoryToken = null;
+      tokenRef.current = null;
+      setStoredToken(null);
     } finally {
       setIsLoading(false);
     }
@@ -106,8 +146,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
 
       if (response.ok && data.success && data.token) {
-        memoryToken = data.token;
         setToken(data.token);
+        tokenRef.current = data.token;
+        setStoredToken(data.token);
         setUser(data.user);
         return { success: true };
       }
@@ -120,13 +161,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      const currentToken = tokenRef.current;
+      if (currentToken) {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${currentToken}` },
+        });
+      }
     } catch (error) {
       console.error('[Auth] Logout error:', error);
     } finally {
-      memoryToken = null;
-      setToken(null);
       setUser(null);
+      setToken(null);
+      tokenRef.current = null;
+      setStoredToken(null);
     }
   };
 

@@ -30,7 +30,7 @@ interface AmbienteDialogProps {
   ambiente?: Ambiente | null;
   servizi: Servizio[];
   selectedApplicazioneId?: string | null;
-  onSuccess: () => void;
+  onSuccess: (savedAmbienteId?: string) => void;
 }
 
 // Find selected application's service
@@ -187,7 +187,13 @@ export function AmbienteDialog({
       }
 
       toast.success(isEditing ? 'Ambiente aggiornato' : 'Ambiente creato');
-      onSuccess();
+      // Recupera l'ID dell'ambiente salvato dalla risposta
+      let savedId = ambiente?.id;
+      if (!savedId && response.ok) {
+        const created = await response.clone().json().catch(() => null);
+        if (created?.id) savedId = created.id;
+      }
+      onSuccess(savedId);
       onOpenChange(false);
     } catch (error) {
       console.error('Errore:', error);

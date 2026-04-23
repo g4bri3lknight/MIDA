@@ -55,7 +55,7 @@ function mapStatoMigrazioneCodice(stato: string | undefined): string {
 }
 
 // Mappa colore di sfondo a stato avanzamento
-function mapColorToStatoAvanzamento(fgColor: XLSX.ExcelCellStyle['fgColor'] | null): string {
+function mapColorToStatoAvanzamento(fgColor: XLSX.CellStyleColor | null): string {
   if (!fgColor) return 'NON_INIZIATO';
   
   // Check RGB first (more reliable than theme)
@@ -160,6 +160,134 @@ function parseExcelDate(value: string | number | undefined): Date | null {
   return null;
 }
 
+// Definizione delle colonne riconosciute con alias
+interface ColumnDef {
+  key: string;
+  aliases: string[];
+}
+
+const COLUMN_DEFINITIONS: ColumnDef[] = [
+  { key: 'applicazione', aliases: ['applicazione', 'application', 'app', 'nome app', 'progetto'] },
+  { key: 'dataInizio', aliases: ['data inizio', 'datainizio', 'inizio', 'datainizio', 'start date', 'inizio migrazione'] },
+  { key: 'dataFine', aliases: ['data fine', 'datafine', 'fine', 'datafine', 'end date', 'fine migrazione'] },
+  { key: 'ambiente', aliases: ['ambiente', 'environment', 'env', 'tipo ambiente', 'tipologia'] },
+  { key: 'tipo', aliases: ['tipo', 'type', 'nodo', 'tipo nodo', 'tipo_nodo'] },
+  { key: 'dns', aliases: ['dns', 'nome dns'] },
+  { key: 'netscaler', aliases: ['netscaler', 'net', 'vip', 'netscaler/vip'] },
+  { key: 'macchineWS', aliases: ['macchine ws', 'macchinews', 'ws', 'web server', 'macchine web', 'macchine ws/jboss'] },
+  { key: 'macchineJBoss', aliases: ['macchine jboss', 'macchinejboss', 'jboss', 'app server', 'macchine app', 'macchine jboss/ws'] },
+  { key: 'note', aliases: ['note', 'notes', 'annotazioni', 'commenti', 'osservazioni'] },
+  { key: 'riscontri', aliases: ['riscontri', 'riscontro', 'check', 'verifica', 'riscontri/note'] },
+  { key: 'conf', aliases: ['conf', 'config', 'configurazioni', 'configurazione', 'config'] },
+  { key: 'macchinaMigrare', aliases: ['macchina', 'macchina esistente', 'macchina da migrare', 'server', 'macchina esistente da migrare', 'nome macchina'] },
+];
+
+// Legge la riga di intestazione e restituisce una mappa key -> colIndex
+function buildColumnMap(sheet: XLSX.WorkSheet, headerRow: number, merges: XLSX.Range[]): Map<string, number> {
+  const colMap = new Map<string, number>();
+  if (!sheet['!ref']) return colMap;
+
+  const range = XLSX.utils.decode_range(sheet['!ref']);
+  const maxCol = Math.max(range.e.c, 20); // scan at least up to col T
+
+  // Helper per leggere una cella (gestisce unioni)
+  const getHeaderCellValue = (row: number, col: number): string => {
+    const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+    const cell = sheet[cellAddress];
+    
+    if (cell && cell.v !== undefined && cell.v !== null) {
+      return String(cell.v).trim().toLowerCase();
+    }
+    
+    // Cerca se la cella è parte di un range unito
+    for (const merge of merges) {
+      if (row >= merge.s.r && row <= merge.e.r && col >= merge.s.c && col <= merge.e.c) {
+        const masterAddress = XLSX.utils.encode_cell({ r: merge.s.r, c: merge.s.c });
+        const masterCell = sheet[masterAddress];
+        if (masterCell && masterCell.v !== undefined && masterCell.v !== null) {
+          return String(masterCell.v).trim().toLowerCase();
+        }
+      }
+    }
+    
+    return '';
+  };
+
+  // Scansiona tutte le celle della riga header
+  const foundHeaders = new Map<number, string>(); // colIndex -> normalized header text
+  for (let col = 0; col <= maxCol; col++) {
+    const val = getHeaderCellValue(headerRow, col);
+    if (!val) continue;
+    foundHeaders.set(col, val);
+  }
+
+  // Match ogni definizione di colonna con gli header trovati
+  for (const colDef of COLUMN_DEFINITIONS) {
+    if (colMap.has(colDef.key)) continue; // già trovato
+
+    for (const [colIdx, headerText] of foundHeaders) {
+      // Match esatto
+      if (colDef.aliases.includes(headerText)) {
+        colMap.set(colDef.key, colIdx);
+        break;
+      }
+
+      // Match parziale: l'alias è contenuto nell'header o viceversa
+      for (const alias of colDef.aliases) {
+        if (headerText.includes(alias) || alias.includes(headerText)) {
+          // Evita falsi positivi (es. "macchine ws" non deve matchare "macchine jboss")
+          if (alias.length >= 3 || headerText === alias) {
+            colMap.set(colDef.key, colIdx);
+            break;
+          }
+        }
+      }
+      if (colMap.has(colDef.key)) break;
+    }
+  }
+
+  // Fallback: se non trova l'ambiente ma trova almeno 4 colonne,
+  // applica la mappa posizionale di default (per compatibilità file vecchi)
+  if (!colMap.has('applicazione') && foundHeaders.size < 3) {
+    // Nessun header riconosciuto, usa posizioni fisse come prima
+    const defaults: Record<string, number> = {
+      'applicazione': 0,
+      'dataInizio': 1,
+      'dataFine': 2,
+      'ambiente': 3,
+      'tipo': 4,
+      'dns': 5,
+      'netscaler': 6,
+      'macchineWS': 7,
+      'macchineJBoss': 8,
+      'note': 9,
+      'riscontri': 10,
+      'conf': 11,
+      'macchinaMigrare': 12,
+    };
+    for (const [key, idx] of Object.entries(defaults)) {
+      colMap.set(key, idx);
+    }
+  } else if (!colMap.has('applicazione')) {
+    // Ha trovato header ma non quello dell'applicazione:
+    // prova posizioni fisse per le colonne principali non trovate
+    const positionalFallbacks: Record<string, number> = {
+      'applicazione': 0,
+      'dataInizio': 1,
+      'dataFine': 2,
+      'ambiente': 3,
+      'tipo': 4,
+    };
+    for (const [key, idx] of Object.entries(positionalFallbacks)) {
+      if (!colMap.has(key)) {
+        colMap.set(key, idx);
+      }
+    }
+  }
+
+  return colMap;
+}
+
 interface ProcessedRow {
   applicazione: string;
   ambiente: string;
@@ -177,7 +305,7 @@ interface ProcessedRow {
   statoAvanzamento: string;
 }
 
-// Processa un foglio Excel gestendo le celle unite
+// Processa un foglio Excel gestendo le celle unite e colonne dinamiche
 function processSheet(sheet: XLSX.WorkSheet): ProcessedRow[] {
   const results: ProcessedRow[] = [];
 
@@ -191,12 +319,10 @@ function processSheet(sheet: XLSX.WorkSheet): ProcessedRow[] {
     const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
     const cell = sheet[cellAddress];
     
-    // Se la cella esiste e ha un valore, ritornalo
     if (cell && cell.v !== undefined && cell.v !== null) {
       return cell.v;
     }
     
-    // Cerca se la cella è parte di un range unito
     for (const merge of merges) {
       if (row >= merge.s.r && row <= merge.e.r && col >= merge.s.c && col <= merge.e.c) {
         const masterAddress = XLSX.utils.encode_cell({ r: merge.s.r, c: merge.s.c });
@@ -218,8 +344,7 @@ function processSheet(sheet: XLSX.WorkSheet): ProcessedRow[] {
   };
 
   // Helper per ottenere il colore di sfondo (gestendo le unioni)
-  const getCellColor = (row: number, col: number): XLSX.ExcelCellStyle['fgColor'] | null => {
-    // Prima controlla se la cella è in un range unito
+  const getCellColor = (row: number, col: number): XLSX.CellStyleColor | null => {
     for (const merge of merges) {
       if (row >= merge.s.r && row <= merge.e.r && col >= merge.s.c && col <= merge.e.c) {
         const masterAddress = XLSX.utils.encode_cell({ r: merge.s.r, c: merge.s.c });
@@ -240,44 +365,34 @@ function processSheet(sheet: XLSX.WorkSheet): ProcessedRow[] {
     return null;
   };
 
-  // Colonne (0-indexed)
-  // A=0: Applicazione
-  // B=1: Data inizio
-  // C=2: Data fine
-  // D=3: Ambiente
-  // E=4: Tipo (Nodo singolo, Nodo 1, Nodo 2)
-  // F=5: DNS
-  // G=6: Netscaler
-  // H=7: Macchine WS
-  // I=8: Macchine Jboss
-  // J=9: Note
-  // K=10: Riscontri
-  // L=11: Conf
-  // M=12: Macchina esistente da migrare
+  // Costruisci la mappa delle colonne dalla riga 0 (intestazione)
+  const colMap = buildColumnMap(sheet, 0, merges);
 
-  const COL_APP = 0;
-  const COL_DATA_INIZIO = 1;
-  const COL_DATA_FINE = 2;
-  const COL_AMB = 3;
-  const COL_TIPO = 4;
-  const COL_DNS = 5;
-  const COL_NET = 6;
-  const COL_WS = 7;
-  const COL_JBOSS = 8;
-  const COL_NOTE = 9;
-  const COL_RISCTR = 10;
-  const COL_CONF = 11;
-  const COL_MACCH = 12;
+  // Helper per leggere un valore dalla colonna mappata (ritorna '' se colonna non trovata)
+  const getColValue = (row: number, key: string): string => {
+    const colIdx = colMap.get(key);
+    if (colIdx === undefined) return '';
+    return getStringValue(row, colIdx);
+  };
+
+  const getColRaw = (row: number, key: string): string | number | undefined => {
+    const colIdx = colMap.get(key);
+    if (colIdx === undefined) return undefined;
+    return getCellValue(row, colIdx);
+  };
+
+  // Indice di partenza: riga 1 se ci sono header riconosciuti, riga 0 altrimenti
+  const dataStartRow = colMap.size > 0 ? 1 : 1;
 
   let currentApplicazione = '';
   let currentDataInizio: Date | null = null;
   let currentDataFine: Date | null = null;
   
-  for (let row = 1; row <= range.e.r; row++) {
-    const applicazione = getStringValue(row, COL_APP);
-    const tipo = getStringValue(row, COL_TIPO);
-    const dataInizioVal = getCellValue(row, COL_DATA_INIZIO);
-    const dataFineVal = getCellValue(row, COL_DATA_FINE);
+  for (let row = dataStartRow; row <= range.e.r; row++) {
+    const applicazione = getColValue(row, 'applicazione');
+    const tipo = getColValue(row, 'tipo');
+    const dataInizioVal = getColRaw(row, 'dataInizio');
+    const dataFineVal = getColRaw(row, 'dataFine');
     
     // Se c'è un nuovo valore applicazione, aggiorna il corrente
     if (applicazione) {
@@ -305,18 +420,19 @@ function processSheet(sheet: XLSX.WorkSheet): ProcessedRow[] {
       tipoNodoRiga = 'nodo 2';
     }
     
-    const ambiente = getStringValue(row, COL_AMB);
-    const dns = getStringValue(row, COL_DNS);
-    const netscaler = getStringValue(row, COL_NET);
-    const macchineWS = getStringValue(row, COL_WS);
-    const macchineJBoss = getStringValue(row, COL_JBOSS);
-    const note = getStringValue(row, COL_NOTE);
-    const riscontri = getStringValue(row, COL_RISCTR);
-    const conf = getStringValue(row, COL_CONF);
-    const macchinaMigrare = getStringValue(row, COL_MACCH);
+    const ambiente = getColValue(row, 'ambiente');
+    const dns = getColValue(row, 'dns');
+    const netscaler = getColValue(row, 'netscaler');
+    const macchineWS = getColValue(row, 'macchineWS');
+    const macchineJBoss = getColValue(row, 'macchineJBoss');
+    const note = getColValue(row, 'note');
+    const riscontri = getColValue(row, 'riscontri');
+    const conf = getColValue(row, 'conf');
+    const macchinaMigrare = getColValue(row, 'macchinaMigrare');
     
     // Ottieni il colore di sfondo della cella Ambiente
-    const bgColor = getCellColor(row, COL_AMB);
+    const ambColIdx = colMap.get('ambiente');
+    const bgColor = ambColIdx !== undefined ? getCellColor(row, ambColIdx) : null;
     const statoAvanzamento = mapColorToStatoAvanzamento(bgColor);
     
     results.push({
@@ -485,21 +601,40 @@ function processCodebaseSheet(sheet: XLSX.WorkSheet): CodebaseEntry[] {
     return String(val).trim();
   };
 
-  // Colonne CODEBASE:
-  // A=0: ICT (Servizio)
-  // B=1: Progetto (Applicazione)
-  // C=2: Stato migrazione codice
+  // Leggi header dinamicamente anche per CODEBASE
+  const colMap = buildColumnMap(sheet, 0, merges);
 
-  const COL_SERVIZIO = 0;
-  const COL_APPLICAZIONE = 1;
-  const COL_STATO = 2;
+  const colServizio = colMap.get('applicazione') ?? 0; // In CODEBASE, col A = servizio (ICT)
+  const colApplicazione = colMap.get('ambiente') ?? 1;   // In CODEBASE, col B = applicazione
+  const colStato = colMap.get('tipo') ?? 2;             // In CODEBASE, col C = stato
+
+  // Se abbiamo trovato header "servizio" o "ict" mappali
+  const codebaseColMap = new Map<string, number>();
+  
+  // Scan header row per CODEBASE specific columns
+  const range2 = XLSX.utils.decode_range(sheet['!ref']);
+  for (let col = 0; col <= range2.e.c; col++) {
+    const headerVal = getStringValue(0, col).toLowerCase();
+    if (['ict', 'servizio', 'service'].includes(headerVal)) {
+      codebaseColMap.set('servizio', col);
+    } else if (['progetto', 'applicazione', 'application', 'project', 'app'].includes(headerVal)) {
+      codebaseColMap.set('applicazione', col);
+    } else if (['stato', 'stato migrazione', 'stato migrazione codice', 'status', 'codebase'].includes(headerVal)) {
+      codebaseColMap.set('stato', col);
+    }
+  }
+
+  // Fallback posizionale se non ha trovato header CODEBASE
+  const cbServizio = codebaseColMap.get('servizio') ?? colServizio;
+  const cbApplicazione = codebaseColMap.get('applicazione') ?? colApplicazione;
+  const cbStato = codebaseColMap.get('stato') ?? colStato;
 
   let currentServizio = '';
 
   for (let row = 1; row <= range.e.r; row++) {
-    const servizio = getStringValue(row, COL_SERVIZIO);
-    const applicazione = getStringValue(row, COL_APPLICAZIONE);
-    const stato = getStringValue(row, COL_STATO);
+    const servizio = getStringValue(row, cbServizio);
+    const applicazione = getStringValue(row, cbApplicazione);
+    const stato = getStringValue(row, cbStato);
 
     // Aggiorna il servizio corrente se presente
     if (servizio && servizio.toUpperCase() !== 'LEGENDA') {
@@ -558,7 +693,6 @@ function cleanupUploadFolder(): void {
       const files = fs.readdirSync(uploadDir);
       for (const file of files) {
         const filePath = path.join(uploadDir, file);
-        // Cancella solo file, non cartelle
         const stats = fs.statSync(filePath);
         if (stats.isFile()) {
           fs.unlinkSync(filePath);
@@ -571,7 +705,7 @@ function cleanupUploadFolder(): void {
 }
 
 export async function POST(request: NextRequest) {
-  const authCheck = await requireImport();
+  const authCheck = await requireImport(request);
   if (!authCheck.authorized) {
     return authCheck.response;
   }
@@ -592,6 +726,8 @@ export async function POST(request: NextRequest) {
       servizi: 0,
       applicazioni: 0,
       ambienti: 0,
+      ambientiAggiornati: 0,
+      ambientiDuplicati: 0,
       errors: [] as string[],
       debug: [] as string[],
     };
@@ -611,7 +747,6 @@ export async function POST(request: NextRequest) {
             const key = `${entry.servizio}|||${entry.applicazione}`;
             codebaseMap.set(key, entry.statoMigrazioneCodice);
             
-            // Aggiungi alla mappa dei nomi applicazioni per servizio
             if (!codebaseAppNames.has(entry.servizio)) {
               codebaseAppNames.set(entry.servizio, []);
             }
@@ -624,39 +759,29 @@ export async function POST(request: NextRequest) {
 
     // Funzione per trovare il nome corretto dell'applicazione da CODEBASE
     function findCorrectAppName(servizio: string, appName: string): string {
-      // Se non contiene "/", ritorna il nome originale
       if (!appName.includes('/')) {
         return appName;
       }
       
-      // Cerca tra le applicazioni del servizio in CODEBASE
       const codebaseApps = codebaseAppNames.get(servizio) || [];
-      
-      // Estrae entrambe le parti (prima e dopo lo "/")
       const parts = appName.split('/').map(p => p.trim().toLowerCase());
       
-      // Cerca un'applicazione in CODEBASE che corrisponda a una delle parti
       for (const codebaseApp of codebaseApps) {
         const codebaseAppLower = codebaseApp.toLowerCase();
         
-        // Controlla ogni parte del nome
         for (const part of parts) {
-          // Match esatto
           if (codebaseAppLower === part) {
             return codebaseApp;
           }
-          // Match se il nome CODEBASE inizia con la parte
           if (codebaseAppLower.startsWith(part)) {
             return codebaseApp;
           }
-          // Match se la parte inizia con il nome CODEBASE
           if (part.startsWith(codebaseAppLower)) {
             return codebaseApp;
           }
         }
       }
       
-      // Se non trova corrispondenza, usa la parte prima dello "/"
       return appName.split('/')[0].trim();
     }
 
@@ -711,7 +836,6 @@ export async function POST(request: NextRequest) {
       // Crea ogni applicazione e i suoi ambienti
       let appOrdine = 0;
       for (const [appNomeRaw, ambientiApp] of applicazioniMap) {
-        // Se il nome contiene "/", usa il nome corretto da CODEBASE
         const appNome = findCorrectAppName(sheetName, appNomeRaw);
         
         if (appNome !== appNomeRaw) {
@@ -750,41 +874,82 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Crea gli ambienti
+        // Crea o aggiorna gli ambienti (con controllo duplicati)
         for (const amb of ambientiApp) {
           try {
             // Estrai la CHG dalle note se presente
             const chgEstratta = extractCHG(amb.note);
             const notePulite = chgEstratta ? removeCHGFromNote(amb.note) : amb.note;
             
-            await db.ambiente.create({
-              data: {
+            const tipologiaEnum = mapTipologiaAmbiente(amb.ambiente) as any;
+
+            // Controlla se esiste già un ambiente per questa applicazione con la stessa tipologia
+            const existingAmbiente = await db.ambiente.findFirst({
+              where: {
                 applicazioneId: applicazione.id,
-                tipologia: mapTipologiaAmbiente(amb.ambiente) as any,
-                tipoNodo: amb.tipoNodo as any,
-                statoAvanzamento: amb.statoAvanzamento as any,
-                dataInizio: amb.dataInizio,
-                dataFine: amb.dataFine,
-                // Nodo 1
-                dns: amb.dns1 || null,
-                netscaler: amb.netscaler1 || null,
-                macchineWS1: amb.macchineWS1 || null,
-                macchineJBoss1: amb.macchineJBoss1 || null,
-                nomeMacchina1: amb.macchinaMigrare1 || null,
-                // Nodo 2
-                macchineWS2: amb.macchineWS2 || null,
-                macchineJBoss2: amb.macchineJBoss2 || null,
-                nomeMacchina2: amb.macchinaMigrare2 || null,
-                // Altri campi
-                richiestaCHG: chgEstratta,
-                riscontri: amb.riscontri || null,
-                note: notePulite || null,
-                configurazioni: amb.conf || null,
+                tipologia: tipologiaEnum,
               },
             });
-            results.ambienti++;
+
+            if (existingAmbiente) {
+              // Aggiorna l'ambiente esistente
+              await db.ambiente.update({
+                where: { id: existingAmbiente.id },
+                data: {
+                  tipoNodo: amb.tipoNodo as any,
+                  statoAvanzamento: amb.statoAvanzamento as any,
+                  dataInizio: amb.dataInizio,
+                  dataFine: amb.dataFine,
+                  // Nodo 1
+                  dns: amb.dns1 || null,
+                  netscaler: amb.netscaler1 || null,
+                  macchineWS1: amb.macchineWS1 || null,
+                  macchineJBoss1: amb.macchineJBoss1 || null,
+                  nomeMacchina1: amb.macchinaMigrare1 || null,
+                  // Nodo 2
+                  macchineWS2: amb.macchineWS2 || null,
+                  macchineJBoss2: amb.macchineJBoss2 || null,
+                  nomeMacchina2: amb.macchinaMigrare2 || null,
+                  // Altri campi - aggiorna solo se presenti nel file
+                  ...(amb.riscontri ? { riscontri: amb.riscontri } : {}),
+                  ...(amb.conf ? { configurazioni: amb.conf } : {}),
+                  ...(notePulite ? { note: notePulite } : {}),
+                  ...(chgEstratta ? { richiestaCHG: chgEstratta } : {}),
+                },
+              });
+              results.ambientiAggiornati++;
+              results.debug.push(`Ambiente aggiornato: ${appNome} / ${TIPOLOGIA_LABELS[tipologiaEnum] || amb.ambiente}`);
+            } else {
+              // Crea nuovo ambiente
+              await db.ambiente.create({
+                data: {
+                  applicazioneId: applicazione.id,
+                  tipologia: tipologiaEnum,
+                  tipoNodo: amb.tipoNodo as any,
+                  statoAvanzamento: amb.statoAvanzamento as any,
+                  dataInizio: amb.dataInizio,
+                  dataFine: amb.dataFine,
+                  // Nodo 1
+                  dns: amb.dns1 || null,
+                  netscaler: amb.netscaler1 || null,
+                  macchineWS1: amb.macchineWS1 || null,
+                  macchineJBoss1: amb.macchineJBoss1 || null,
+                  nomeMacchina1: amb.macchinaMigrare1 || null,
+                  // Nodo 2
+                  macchineWS2: amb.macchineWS2 || null,
+                  macchineJBoss2: amb.macchineJBoss2 || null,
+                  nomeMacchina2: amb.macchinaMigrare2 || null,
+                  // Altri campi
+                  richiestaCHG: chgEstratta,
+                  riscontri: amb.riscontri || null,
+                  note: notePulite || null,
+                  configurazioni: amb.conf || null,
+                },
+              });
+              results.ambienti++;
+            }
           } catch (e) {
-            results.errors.push(`Errore creando ambiente ${amb.ambiente} per ${appNome}: ${e}`);
+            results.errors.push(`Errore su ambiente ${amb.ambiente} per ${appNome}: ${e}`);
           }
         }
       }
@@ -795,13 +960,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Importazione completata: ${results.servizi} servizi, ${results.applicazioni} applicazioni, ${results.ambienti} ambienti`,
+      message: `Importazione completata: ${results.servizi} servizi, ${results.applicazioni} applicazioni, ${results.ambienti} ambienti creati, ${results.ambientiAggiornati} ambienti aggiornati`,
       results,
     });
   } catch (error) {
     console.error('Errore importazione:', error);
     
-    // Cancella i file dalla cartella upload anche in caso di errore
     cleanupUploadFolder();
     
     return NextResponse.json(
@@ -810,3 +974,12 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// Label per i log di debug
+const TIPOLOGIA_LABELS: Record<string, string> = {
+  'TEST_INTERNO': 'Test Interno',
+  'VALIDAZIONE': 'Validazione',
+  'TEST_CONCESSIONARI': 'Test Concessionari',
+  'BENCHMARK': 'Benchmark',
+  'PRODUZIONE': 'Produzione',
+};
